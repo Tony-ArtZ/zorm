@@ -1,0 +1,4 @@
+zig-out
+.zig-cache
+db
+src/schema.zig
