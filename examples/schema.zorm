@@ -1,8 +1,6 @@
-// ZORM Schema Definition
-// Backend configuration
+[config]
 backend postgres
 
-// User model definition
 model User {
   id     Int     @id
   name   String
