@@ -1,5 +1,7 @@
 # ZORM
 
+![ZORM Header](./assets/ZormHeader.png)
+
 > **Note:** ZORM is a work in progress (WIP).
 >
 > **For schema syntax highlighting and LSP support, check out the [ZORM VSCode Extension](https://marketplace.visualstudio.com/items?itemName=TonyArtZ.zorm) and [the Github repo](https://github.com/Tony-ArtZ/zorm-lsp).**
