@@ -143,6 +143,17 @@ pub fn main() !void {
     const schema_path = args.next() orelse "schema.zorm";
     const output_path = args.next() orelse "generated_schema.zig";
 
+    try generateSchema(allocator, schema_path, output_path);
+
+    std.debug.print("Generated {s} \n", .{output_path});
+}
+
+// Wrapper function to use as an import
+pub fn generateSchema(
+    allocator: std.mem.Allocator,
+    schema_path: []const u8,
+    output_path: []const u8,
+) !void {
     const file = try std.fs.cwd().openFile(schema_path, .{});
     defer file.close();
 
@@ -159,6 +170,4 @@ pub fn main() !void {
 
     // Generate schema file in user's project, not in library src/
     try generateMetaFile(allocator, schema, output_path);
-
-    std.debug.print("Generated {s} with {} models\n", .{ output_path, schema.models.items.len });
 }

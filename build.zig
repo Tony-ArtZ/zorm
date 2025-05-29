@@ -32,6 +32,10 @@ pub fn build(b: *std.Build) void {
     generator_exe.root_module.addImport("zorm", lib_mod);
     b.installArtifact(generator_exe);
 
+    // Add a separate build step for the generator
+    const generator_step = b.step("generator", "Build only the zorm-generator executable");
+    generator_step.dependOn(&generator_exe.step);
+
     // Build the example executable
     const example_exe = b.addExecutable(.{
         .name = "example",
