@@ -18,7 +18,7 @@ Add ZORM to your `build.zig.zon`:
 .{
   .dependencies = .{
     .zorm = .{
-      .url = "https://github.com/yourusername/zorm/archive/main.tar.gz",
+      .url = "https://github.com/Tony-ArtZ/zorm/archive/refs/heads/main.tar.gz",
     },
   },
 }
