@@ -15,6 +15,9 @@ pub fn build(b: *std.Build) void {
         .name = "zorm",
         .root_module = lib_mod,
     });
+    lib.linkLibC();
+    lib.linkSystemLibrary("pq");
+    lib.linkSystemLibrary("sqlite3");
     b.installArtifact(lib);
     _ = b.addModule("zorm", .{
         .root_source_file = b.path("src/root.zig"),
@@ -29,6 +32,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    generator_exe.linkLibC();
     generator_exe.root_module.addImport("zorm", lib_mod);
     b.installArtifact(generator_exe);
 
@@ -48,4 +52,17 @@ pub fn build(b: *std.Build) void {
     example_exe.linkSystemLibrary("sqlite3");
     example_exe.root_module.addImport("zorm", lib_mod);
     b.installArtifact(example_exe);
+
+    // Build the query builder example executable
+    const qb_example_exe = b.addExecutable(.{
+        .name = "query_builder_example",
+        .root_source_file = b.path("examples/query_builder_example.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    qb_example_exe.linkLibC();
+    qb_example_exe.linkSystemLibrary("pq");
+    qb_example_exe.linkSystemLibrary("sqlite3");
+    qb_example_exe.root_module.addImport("zorm", lib_mod);
+    b.installArtifact(qb_example_exe);
 }

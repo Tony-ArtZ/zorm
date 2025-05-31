@@ -3,6 +3,11 @@ const c = @cImport({
     @cInclude("sqlite3.h");
 });
 const parser = @import("../parser.zig");
+const query_builder = @import("../query_builder.zig");
+
+pub const QueryBuilder = query_builder.QueryBuilder;
+pub const OrderDirection = query_builder.OrderDirection;
+pub const ComparisonOperator = query_builder.ComparisonOperator;
 
 pub const SQLiteError = error{
     ConnectionFailed,
@@ -46,20 +51,15 @@ pub const SQLITE = struct {
         }
     }
 
-    pub fn insert(self: *SQLITE, comptime T: type, data: T) !void {
+    pub fn insert(self: *SQLITE, comptime T: type, value: T) !void {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
-
         const type_name = @typeName(T);
         const model_name = if (std.mem.endsWith(u8, type_name, ".User")) "User" else type_name;
-
         var query = std.ArrayList(u8).init(self.allocator);
         defer query.deinit();
-
         try query.appendSlice("INSERT INTO \"");
         try query.appendSlice(model_name);
         try query.appendSlice("\" (");
-
-        // Add column names
         const fields = std.meta.fields(T);
         inline for (fields, 0..) |field, i| {
             if (i > 0) try query.appendSlice(", ");
@@ -67,15 +67,11 @@ pub const SQLITE = struct {
             try query.appendSlice(field.name);
             try query.append('"');
         }
-
         try query.appendSlice(") VALUES (");
-
-        // Add values
         inline for (fields, 0..) |field, i| {
             if (i > 0) try query.appendSlice(", ");
             try query.append('\'');
-
-            const field_value = @field(data, field.name);
+            const field_value = @field(value, field.name);
             if (field.type == []const u8) {
                 try query.appendSlice(field_value);
             } else {
@@ -83,15 +79,11 @@ pub const SQLITE = struct {
                 defer self.allocator.free(value_str);
                 try query.appendSlice(value_str);
             }
-
             try query.append('\'');
         }
-
         try query.appendSlice(");");
-
         const c_query = try self.allocator.dupeZ(u8, query.items);
         defer self.allocator.free(c_query);
-
         const rc = c.sqlite3_exec(self.conn, c_query.ptr, null, null, null);
         if (rc != c.SQLITE_OK) {
             const err_msg = c.sqlite3_errmsg(self.conn);
@@ -119,10 +111,8 @@ pub const SQLITE = struct {
             try query.appendSlice(field.name);
             try query.appendSlice("\" ");
 
-            // Map field types to SQLite types
             switch (field.type) {
                 .relation => {
-                    // Check field name to determine actual type
                     if (std.mem.eql(u8, field.name, "id")) {
                         try query.appendSlice("INTEGER");
                     } else if (std.mem.eql(u8, field.name, "age")) {
@@ -154,6 +144,88 @@ pub const SQLITE = struct {
             const err_msg = c.sqlite3_errmsg(self.conn);
             std.debug.print("Create table failed: {s}\n", .{err_msg});
             std.debug.print("Query was: {s}\n", .{query.items});
+            return SQLiteError.QueryFailed;
+        }
+    }
+
+    pub fn queryBuilder(self: *SQLITE, comptime model_meta: parser.ModelMeta) !QueryBuilder {
+        return QueryBuilder.initWithMeta(self.allocator, &model_meta);
+    }
+
+    pub fn select(self: *SQLITE, comptime T: type, builder: *QueryBuilder) ![]T {
+        if (self.conn == null) return SQLiteError.ConnectionFailed;
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
+        try builder.buildSelectQuery(&query_text);
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
+        defer self.allocator.free(c_query);
+        var stmt: ?*c.sqlite3_stmt = null;
+        const rc = c.sqlite3_prepare_v2(self.conn, c_query.ptr, @as(c_int, @intCast(query_text.items.len)), &stmt, null);
+        if (rc != c.SQLITE_OK) {
+            const err_msg = c.sqlite3_errmsg(self.conn);
+            std.debug.print("SELECT query preparation failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
+            return SQLiteError.QueryFailed;
+        }
+        defer _ = c.sqlite3_finalize(stmt);
+        // Count rows first
+        var row_count: usize = 0;
+        while (c.sqlite3_step(stmt) == c.SQLITE_ROW) : (row_count += 1) {}
+        _ = c.sqlite3_reset(stmt);
+        // Allocate result array
+        var out = try self.allocator.alloc(T, row_count);
+        var idx: usize = 0;
+        while (c.sqlite3_step(stmt) == c.SQLITE_ROW) {
+            var item: T = undefined;
+            const fields = std.meta.fields(T);
+            inline for (fields, 0..) |field, j| {
+                if (c.sqlite3_column_type(stmt, @intCast(j)) == c.SQLITE_NULL) {
+                    @field(item, field.name) = undefined;
+                } else if (field.type == []const u8) {
+                    const text = c.sqlite3_column_text(stmt, @intCast(j));
+                    if (text) |txt| {
+                        @field(item, field.name) = std.mem.span(@as([*:0]const u8, @ptrCast(txt)));
+                    } else {
+                        @field(item, field.name) = undefined;
+                    }
+                } else {
+                    @field(item, field.name) = undefined;
+                }
+            }
+            out[idx] = item;
+            idx += 1;
+        }
+        return out;
+    }
+
+    pub fn delete(self: *SQLITE, builder: *QueryBuilder) !void {
+        if (self.conn == null) return SQLiteError.ConnectionFailed;
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
+        try builder.buildDeleteQuery(&query_text);
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
+        defer self.allocator.free(c_query);
+        const rc = c.sqlite3_exec(self.conn, c_query.ptr, null, null, null);
+        if (rc != c.SQLITE_OK) {
+            const err_msg = c.sqlite3_errmsg(self.conn);
+            std.debug.print("Delete failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
+            return SQLiteError.QueryFailed;
+        }
+    }
+
+    pub fn update(self: *SQLITE, builder: *QueryBuilder) !void {
+        if (self.conn == null) return SQLiteError.ConnectionFailed;
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
+        try builder.buildUpdateQuery(&query_text);
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
+        defer self.allocator.free(c_query);
+        const rc = c.sqlite3_exec(self.conn, c_query.ptr, null, null, null);
+        if (rc != c.SQLITE_OK) {
+            const err_msg = c.sqlite3_errmsg(self.conn);
+            std.debug.print("Update failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
             return SQLiteError.QueryFailed;
         }
     }

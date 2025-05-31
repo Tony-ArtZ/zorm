@@ -3,7 +3,7 @@ const parser = @import("../parser.zig");
 
 // Import libpq (PostgreSQL C client library)
 const c = @cImport({
-    @cInclude("libpq-fe.h");
+    @cInclude("postgresql/libpq-fe.h");
 });
 
 pub const PGError = error{
@@ -13,6 +13,11 @@ pub const PGError = error{
     AllocationFailed,
     FormatFailed,
 };
+
+const query_builder = @import("../query_builder.zig");
+pub const QueryBuilder = query_builder.QueryBuilder;
+pub const OrderDirection = query_builder.OrderDirection;
+pub const ComparisonOperator = query_builder.ComparisonOperator;
 
 pub const PG = struct {
     allocator: std.mem.Allocator,
@@ -25,8 +30,11 @@ pub const PG = struct {
         };
     }
 
+    pub fn queryBuilder(self: *PG, comptime model_meta: parser.ModelMeta) !QueryBuilder {
+        return QueryBuilder.initWithMeta(self.allocator, &model_meta);
+    }
+
     pub fn connect(self: *PG, conninfo: []const u8) !void {
-        // Convert Zig string to null-terminated C string
         const c_conninfo = try self.allocator.dupeZ(u8, conninfo);
         defer self.allocator.free(c_conninfo);
 
@@ -47,7 +55,63 @@ pub const PG = struct {
         }
     }
 
-    pub fn insert(self: *PG, comptime T: type, data: T) !void {
+    // Unified CRUD API
+    pub fn createTable(self: *PG, comptime model_meta: parser.ModelMeta) !void {
+        if (self.conn == null) return PGError.ConnectionFailed;
+
+        var query = std.ArrayList(u8).init(self.allocator);
+        defer query.deinit();
+
+        try query.appendSlice("CREATE TABLE IF NOT EXISTS \"");
+        try query.appendSlice(model_meta.name);
+        try query.appendSlice("\" (");
+
+        for (model_meta.fields, 0..) |field, i| {
+            if (i > 0) try query.appendSlice(", ");
+
+            try query.append('"');
+            try query.appendSlice(field.name);
+            try query.appendSlice("\" ");
+
+            switch (field.type) {
+                .relation => {
+                    if (std.mem.eql(u8, field.name, "id")) {
+                        try query.appendSlice("INTEGER");
+                    } else if (std.mem.eql(u8, field.name, "age")) {
+                        try query.appendSlice("INTEGER");
+                    } else {
+                        try query.appendSlice("TEXT");
+                    }
+                },
+                else => try query.appendSlice("TEXT"),
+            }
+
+            for (field.constraints) |constraint| {
+                switch (constraint) {
+                    .primary => try query.appendSlice(" PRIMARY KEY"),
+                    .unique => try query.appendSlice(" UNIQUE"),
+                    else => {},
+                }
+            }
+        }
+
+        try query.appendSlice(");");
+
+        const c_query = try self.allocator.dupeZ(u8, query.items);
+        defer self.allocator.free(c_query);
+
+        const result = c.PQexec(self.conn, c_query.ptr);
+        defer c.PQclear(result);
+
+        if (c.PQresultStatus(result) != c.PGRES_COMMAND_OK) {
+            const err_msg = c.PQerrorMessage(self.conn);
+            std.debug.print("Create table failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query.items});
+            return PGError.QueryFailed;
+        }
+    }
+
+    pub fn insert(self: *PG, comptime T: type, value: T) !void {
         if (self.conn == null) return PGError.ConnectionFailed;
 
         const type_name = @typeName(T);
@@ -60,7 +124,6 @@ pub const PG = struct {
         try query.appendSlice(model_name);
         try query.appendSlice("\" (");
 
-        // Add column names
         const fields = std.meta.fields(T);
         inline for (fields, 0..) |field, i| {
             if (i > 0) try query.appendSlice(", ");
@@ -71,12 +134,11 @@ pub const PG = struct {
 
         try query.appendSlice(") VALUES (");
 
-        // Add values
         inline for (fields, 0..) |field, i| {
             if (i > 0) try query.appendSlice(", ");
             try query.append('\'');
 
-            const field_value = @field(data, field.name);
+            const field_value = @field(value, field.name);
             if (field.type == []const u8) {
                 try query.appendSlice(field_value);
             } else {
@@ -104,52 +166,15 @@ pub const PG = struct {
         }
     }
 
-    /// Helper function to create tables based on schema metadata
-    pub fn createTable(self: *PG, comptime model_meta: parser.ModelMeta) !void {
+    pub fn update(self: *PG, builder: *QueryBuilder) !void {
         if (self.conn == null) return PGError.ConnectionFailed;
 
-        var query = std.ArrayList(u8).init(self.allocator);
-        defer query.deinit();
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
 
-        try query.appendSlice("CREATE TABLE IF NOT EXISTS \"");
-        try query.appendSlice(model_meta.name);
-        try query.appendSlice("\" (");
+        try builder.buildUpdateQuery(&query_text);
 
-        for (model_meta.fields, 0..) |field, i| {
-            if (i > 0) try query.appendSlice(", ");
-
-            try query.append('"');
-            try query.appendSlice(field.name);
-            try query.appendSlice("\" ");
-
-            // Map field types to PostgreSQL types
-            switch (field.type) {
-                .relation => {
-                    // Check field name to determine actual type
-                    if (std.mem.eql(u8, field.name, "id")) {
-                        try query.appendSlice("INTEGER");
-                    } else if (std.mem.eql(u8, field.name, "age")) {
-                        try query.appendSlice("INTEGER");
-                    } else {
-                        try query.appendSlice("TEXT");
-                    }
-                },
-                else => try query.appendSlice("TEXT"),
-            }
-
-            // Add constraints
-            for (field.constraints) |constraint| {
-                switch (constraint) {
-                    .primary => try query.appendSlice(" PRIMARY KEY"),
-                    .unique => try query.appendSlice(" UNIQUE"),
-                    else => {},
-                }
-            }
-        }
-
-        try query.appendSlice(");");
-
-        const c_query = try self.allocator.dupeZ(u8, query.items);
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
         defer self.allocator.free(c_query);
 
         const result = c.PQexec(self.conn, c_query.ptr);
@@ -157,9 +182,81 @@ pub const PG = struct {
 
         if (c.PQresultStatus(result) != c.PGRES_COMMAND_OK) {
             const err_msg = c.PQerrorMessage(self.conn);
-            std.debug.print("Create table failed: {s}\n", .{err_msg});
-            std.debug.print("Query was: {s}\n", .{query.items});
+            std.debug.print("Update failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
             return PGError.QueryFailed;
         }
+    }
+
+    pub fn delete(self: *PG, builder: *QueryBuilder) !void {
+        if (self.conn == null) return PGError.ConnectionFailed;
+
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
+
+        try builder.buildDeleteQuery(&query_text);
+
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
+        defer self.allocator.free(c_query);
+
+        const result = c.PQexec(self.conn, c_query.ptr);
+        defer c.PQclear(result);
+
+        if (c.PQresultStatus(result) != c.PGRES_COMMAND_OK) {
+            const err_msg = c.PQerrorMessage(self.conn);
+            std.debug.print("Delete failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
+            return PGError.QueryFailed;
+        }
+    }
+
+    pub fn select(self: *PG, comptime T: type, builder: *QueryBuilder) ![]T {
+        if (self.conn == null) return PGError.ConnectionFailed;
+
+        var query_text = std.ArrayList(u8).init(self.allocator);
+        defer query_text.deinit();
+
+        try builder.buildSelectQuery(&query_text);
+
+        const c_query = try self.allocator.dupeZ(u8, query_text.items);
+        defer self.allocator.free(c_query);
+
+        const result = c.PQexec(self.conn, c_query.ptr);
+        defer c.PQclear(result);
+
+        if (c.PQresultStatus(result) != c.PGRES_TUPLES_OK) {
+            const err_msg = c.PQerrorMessage(self.conn);
+            std.debug.print("SELECT query failed: {s}\n", .{err_msg});
+            std.debug.print("Query was: {s}\n", .{query_text.items});
+            return PGError.QueryFailed;
+        }
+
+        const rows = c.PQntuples(result);
+        const cols = c.PQnfields(result);
+
+        if (rows < 0) {
+            std.debug.print("SELECT returned negative row count: {}\n", .{rows});
+            return PGError.QueryFailed;
+        }
+        var out = try self.allocator.alloc(T, @intCast(rows));
+        for (0..@intCast(rows)) |i| {
+            var item: T = undefined;
+            const fields = std.meta.fields(T);
+            inline for (fields, 0..) |field, j| {
+                if (j >= cols) break;
+                if (c.PQgetisnull(result, @intCast(i), @intCast(j)) != 0) {
+                    @field(item, field.name) = undefined;
+                } else {
+                    const value = c.PQgetvalue(result, @intCast(i), @intCast(j));
+                    if (field.type == []const u8) {
+                        @field(item, field.name) = std.mem.span(value);
+                    } else {
+                        @field(item, field.name) = undefined;
+                    }
+                }
+            }
+            out[i] = item;
+        }
+        return out;
     }
 };

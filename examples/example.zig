@@ -2,7 +2,6 @@
 const std = @import("std");
 const zorm = @import("zorm");
 const schema = @import("generated_schema.zig"); // Generated from schema.zorm
-const PG = zorm.pg.PG;
 const SQLITE = zorm.SQLITE;
 
 pub fn main() !void {
@@ -11,16 +10,16 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // Initialize PostgreSQL backend
-    var pg = SQLITE.init(allocator);
-    defer pg.disconnect();
+    var db = SQLITE.init(allocator);
+    defer db.disconnect();
 
     // Connect to database
     // Replace with your actual connection string
     const conninfo = "test.db";
-    try pg.connect(conninfo);
+    try db.connect(conninfo);
 
     // Create the User table
-    try pg.createTable(schema.UserMeta);
+    try db.createTable(schema.UserMeta);
 
     // Create a user instance
     const user = schema.User{
@@ -31,7 +30,7 @@ pub fn main() !void {
     };
 
     // Insert the user
-    try pg.insert(schema.User, user);
+    try db.insert(schema.User, user);
 
     std.debug.print("User inserted successfully!\n", .{});
 }
