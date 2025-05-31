@@ -146,6 +146,7 @@ pub fn main() !void {
 ## More Examples
 
 - See [`examples/example.zig`](examples/example.zig) for a complete example.
+- See [`examples/query_builder_example.zig`](examples/query_builder_example.zig) for a sample query builder example.
 - See [`examples/schema.zorm`](examples/schema.zorm) for a sample schema definition.
 
 ## Roadmap & Status
