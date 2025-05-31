@@ -14,7 +14,6 @@ pub fn main() !void {
     defer db.disconnect();
 
     // Connect to database
-    // const conninfo = "host=yamanote.proxy.rlwy.net port=54757 dbname=railway user=postgres password=wqQPZpLcKCtYnFkaLRFlSjmFOyiVvovZ sslmode=require";
     const conninfo = "test.db";
     try db.connect(conninfo);
 
