@@ -23,7 +23,9 @@ Currently ZORM only supports `Postgres` and `Sqlite3`. More functionality and ba
 
 Add ZORM to your `build.zig.zon` using :
 
-`zig fetch --save git+https://github.com/Tony-ArtZ/zorm`
+```sh
+zig fetch --save git+https://github.com/Tony-ArtZ/zorm
+```
 
 ### 2. Add ZORM to your build.zig
 
@@ -50,8 +52,9 @@ You have two options to generate Zig code from your `.zorm` schema:
 
 1. Add Generator Artifact to your build step:
 
-```const generator = zorm_dep.artifact("zorm-generator");
-    b.installArtifact(generator);
+```zig
+const generator = zorm_dep.artifact("zorm-generator");
+b.installArtifact(generator);
 ```
 
 2. Run the generator with your schema and output paths:
