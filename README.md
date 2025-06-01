@@ -21,17 +21,9 @@ Currently ZORM only supports `Postgres` and `Sqlite3`. More functionality and ba
 
 ### 1. Add as Dependency
 
-Add ZORM to your `build.zig.zon`:
+Add ZORM to your `build.zig.zon` using :
 
-```zig
-.{
-  .dependencies = .{
-    .zorm = .{
-      .url = "https://github.com/Tony-ArtZ/zorm/archive/refs/heads/main.tar.gz",
-    },
-  },
-}
-```
+`zig fetch --save git+https://github.com/Tony-ArtZ/zorm`
 
 ### 2. Add ZORM to your build.zig
 
@@ -56,18 +48,16 @@ You have two options to generate Zig code from your `.zorm` schema:
 
 #### Option 1: Build and run the generator executable
 
-1. Clone the zorm repository and build the generator:
+1. Add Generator Artifact to your build step:
 
-```sh
-git clone https://github.com/Tony-ArtZ/zorm.git
-cd zorm
-zig build generator
+```const generator = zorm_dep.artifact("zorm-generator");
+    b.installArtifact(generator);
 ```
 
 2. Run the generator with your schema and output paths:
 
 ```sh
-./zig-out/bin/zorm-generator <input_schema_path> <output_path>
+./zig-out/bin/zorm-generator <input_schema_path> <output_path?>
 ```
 
 #### Option 2: Use the generator programmatically in Zig
@@ -82,6 +72,8 @@ try zorm.generator.generateSchema(
     output_path        // []const u8
 );
 ```
+
+> **Important:** When building your executable, make sure to link the appropriate C library headers for your backend (SQLite or PostgreSQL). For SQLite, link `-lsqlite3`; for PostgreSQL, link `-lpq` and ensure the headers are available. This is required for successful compilation and runtime.
 
 ## Schema Definition (`schema.zorm`)
 
