@@ -65,7 +65,7 @@ pub fn main() !void {
 
     // Execute the query using the query builder
     const results = try db.select(schema.User, &qb);
-    defer db.allocator.free(results);
+    defer db.freeResults(schema.User, results);
 
     std.debug.print("\nQuery results (users over 18):\n", .{});
     for (results) |user| {

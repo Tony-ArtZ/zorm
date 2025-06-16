@@ -245,11 +245,23 @@ pub const PG = struct {
             inline for (fields, 0..) |field, j| {
                 if (j >= cols) break;
                 if (c.PQgetisnull(result, @intCast(i), @intCast(j)) != 0) {
-                    @field(item, field.name) = undefined;
+                    if (field.type == []const u8) {
+                        @field(item, field.name) = try self.allocator.dupe(u8, "");
+                    } else {
+                        @field(item, field.name) = undefined;
+                    }
                 } else {
                     const value = c.PQgetvalue(result, @intCast(i), @intCast(j));
                     if (field.type == []const u8) {
-                        @field(item, field.name) = std.mem.span(value);
+                        const src_text = std.mem.span(@as([*:0]const u8, @ptrCast(value)));
+                        @field(item, field.name) = try self.allocator.dupe(u8, src_text);
+                    } else if (field.type == i32 or field.type == u32) {
+                        const src_text = std.mem.span(@as([*:0]const u8, @ptrCast(value)));
+                        if (field.type == i32) {
+                            @field(item, field.name) = std.fmt.parseInt(i32, src_text, 10) catch 0;
+                        } else {
+                            @field(item, field.name) = std.fmt.parseInt(u32, src_text, 10) catch 0;
+                        }
                     } else {
                         @field(item, field.name) = undefined;
                     }
@@ -258,5 +270,20 @@ pub const PG = struct {
             out[i] = item;
         }
         return out;
+    }
+
+    pub fn freeResults(self: *PG, comptime T: type, results: []T) void {
+        const fields = std.meta.fields(T);
+        for (results) |item| {
+            inline for (fields) |field| {
+                if (field.type == []const u8) {
+                    const field_value = @field(item, field.name);
+                    if (field_value.len > 0) {
+                        self.allocator.free(field_value);
+                    }
+                }
+            }
+        }
+        self.allocator.free(results);
     }
 };

@@ -180,16 +180,26 @@ pub const SQLITE = struct {
             const fields = std.meta.fields(T);
             inline for (fields, 0..) |field, j| {
                 if (c.sqlite3_column_type(stmt, @intCast(j)) == c.SQLITE_NULL) {
-                    @field(item, field.name) = undefined;
+                    if (field.type == []const u8) {
+                        @field(item, field.name) = try self.allocator.dupe(u8, "");
+                    } else {
+                        @field(item, field.name) = 0;
+                    }
                 } else if (field.type == []const u8) {
                     const text = c.sqlite3_column_text(stmt, @intCast(j));
                     if (text) |txt| {
-                        @field(item, field.name) = std.mem.span(@as([*:0]const u8, @ptrCast(txt)));
+                        const src_text = std.mem.span(@as([*:0]const u8, @ptrCast(txt)));
+                        // Copy the string to our own allocated memory
+                        @field(item, field.name) = try self.allocator.dupe(u8, src_text);
                     } else {
-                        @field(item, field.name) = undefined;
+                        @field(item, field.name) = try self.allocator.dupe(u8, "");
                     }
+                } else if (field.type == i32) {
+                    @field(item, field.name) = c.sqlite3_column_int(stmt, @intCast(j));
+                } else if (field.type == u32) {
+                    @field(item, field.name) = @intCast(c.sqlite3_column_int(stmt, @intCast(j)));
                 } else {
-                    @field(item, field.name) = undefined;
+                    @field(item, field.name) = 0;
                 }
             }
             out[idx] = item;
@@ -228,5 +238,20 @@ pub const SQLITE = struct {
             std.debug.print("Query was: {s}\n", .{query_text.items});
             return SQLiteError.QueryFailed;
         }
+    }
+
+    pub fn freeResults(self: *SQLITE, comptime T: type, results: []T) void {
+        const fields = std.meta.fields(T);
+        for (results) |item| {
+            inline for (fields) |field| {
+                if (field.type == []const u8) {
+                    const field_value = @field(item, field.name);
+                    if (field_value.len > 0) {
+                        self.allocator.free(field_value);
+                    }
+                }
+            }
+        }
+        self.allocator.free(results);
     }
 };
