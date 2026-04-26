@@ -28,9 +28,11 @@ pub fn build(b: *std.Build) void {
     // Build the generator executable
     const generator_exe = b.addExecutable(.{
         .name = "zorm-generator",
-        .root_source_file = b.path("src/generator.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/generator.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     generator_exe.linkLibC();
     generator_exe.root_module.addImport("zorm", lib_mod);
@@ -43,9 +45,11 @@ pub fn build(b: *std.Build) void {
     // Build the example executable
     const example_exe = b.addExecutable(.{
         .name = "example",
-        .root_source_file = b.path("examples/example.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/example.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     example_exe.linkLibC();
     example_exe.linkSystemLibrary("pq");
@@ -56,9 +60,11 @@ pub fn build(b: *std.Build) void {
     // Build the query builder example executable
     const qb_example_exe = b.addExecutable(.{
         .name = "query_builder_example",
-        .root_source_file = b.path("examples/query_builder_example.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/query_builder_example.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     qb_example_exe.linkLibC();
     qb_example_exe.linkSystemLibrary("pq");

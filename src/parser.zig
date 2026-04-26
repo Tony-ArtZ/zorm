@@ -36,12 +36,12 @@ pub const Constraint = union(enum) {
 pub const Field = struct {
     name: []const u8,
     type: FieldType,
-    constraints: std.ArrayList(Constraint),
+    constraints: std.array_list.Managed(Constraint),
 };
 
 pub const Model = struct {
     name: []const u8,
-    fields: std.ArrayList(Field),
+    fields: std.array_list.Managed(Field),
 };
 
 pub const ModelMeta = struct {
@@ -50,7 +50,7 @@ pub const ModelMeta = struct {
 };
 
 pub const Schema = struct {
-    models: std.ArrayList(Model),
+    models: std.array_list.Managed(Model),
     db_type: DatabaseType,
 };
 
@@ -66,13 +66,13 @@ pub const ParserError = error{
 
 pub const Parser = struct {
     allocator: std.mem.Allocator,
-    models: std.ArrayList(Model),
+    models: std.array_list.Managed(Model),
     db_type: DatabaseType,
 
     pub fn init(allocator: std.mem.Allocator) Parser {
         return Parser{
             .allocator = allocator,
-            .models = std.ArrayList(Model).init(allocator),
+            .models = std.array_list.Managed(Model).init(allocator),
             .db_type = undefined,
         };
     }
@@ -90,7 +90,7 @@ pub const Parser = struct {
     pub fn parse(self: *Parser, input: []const u8) ParserError!Schema {
         var lines = std.mem.splitScalar(u8, input, '\n');
         var current_model: ?Model = null;
-        var fields = std.ArrayList(Field).init(self.allocator);
+        var fields = std.array_list.Managed(Field).init(self.allocator);
         var in_config = false;
         var effective_db_type: DatabaseType = undefined;
 
@@ -137,7 +137,7 @@ pub const Parser = struct {
                     var model = m;
                     model.fields = fields;
                     try self.models.append(model);
-                    fields = std.ArrayList(Field).init(self.allocator);
+                    fields = std.array_list.Managed(Field).init(self.allocator);
                 }
                 const nameSliced = trimmed[6..];
                 const name = std.mem.trim(u8, nameSliced, " {\t");
@@ -152,7 +152,7 @@ pub const Parser = struct {
                     model.fields = fields;
                     try self.models.append(model);
                     current_model = null;
-                    fields = std.ArrayList(Field).init(self.allocator);
+                    fields = std.array_list.Managed(Field).init(self.allocator);
                 } else {
                     return ParserError.InvalidModel;
                 }
@@ -185,7 +185,7 @@ pub const Parser = struct {
                 } else {
                     field_type = FieldType.relation;
                 }
-                var constraints = std.ArrayList(Constraint).init(self.allocator);
+                var constraints = std.array_list.Managed(Constraint).init(self.allocator);
 
                 // Add optional constraint if type ended with ?
                 if (is_optional_from_type) {

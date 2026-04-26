@@ -21,6 +21,10 @@ pub fn main() !void {
     // Create the User table
     try db.createTable(schema.UserMeta);
 
+    var clear_qb = try zorm.QueryBuilder.init(allocator, &schema.UserMeta);
+    defer clear_qb.deinit();
+    try db.delete(&clear_qb);
+
     // Create a user instance
     const user = schema.User{
         .id = "1",

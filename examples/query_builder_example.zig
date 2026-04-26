@@ -20,6 +20,10 @@ pub fn main() !void {
     // Create the User table
     try db.createTable(schema.UserMeta);
 
+    var clear_qb = try zorm.QueryBuilder.init(allocator, &schema.UserMeta);
+    defer clear_qb.deinit();
+    try db.delete(&clear_qb);
+
     // Insert some sample users
     const user1 = schema.User{
         .id = "1",
@@ -58,7 +62,7 @@ pub fn main() !void {
     _ = try qb.orderBy("name", zorm.OrderDirection.ASC);
     _ = qb.limit(10);
 
-    var query_buf = std.ArrayList(u8).init(allocator);
+    var query_buf = std.array_list.Managed(u8).init(allocator);
     defer query_buf.deinit();
     try qb.buildSelectQuery(&query_buf);
     std.debug.print("Generated SELECT query: {s}\n", .{query_buf.items});

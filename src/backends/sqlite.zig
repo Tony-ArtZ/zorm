@@ -55,7 +55,7 @@ pub const SQLITE = struct {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
         const type_name = @typeName(T);
         const model_name = if (std.mem.endsWith(u8, type_name, ".User")) "User" else type_name;
-        var query = std.ArrayList(u8).init(self.allocator);
+        var query = std.array_list.Managed(u8).init(self.allocator);
         defer query.deinit();
         try query.appendSlice("INSERT INTO \"");
         try query.appendSlice(model_name);
@@ -97,7 +97,7 @@ pub const SQLITE = struct {
     pub fn createTable(self: *SQLITE, comptime model_meta: parser.ModelMeta) !void {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
 
-        var query = std.ArrayList(u8).init(self.allocator);
+        var query = std.array_list.Managed(u8).init(self.allocator);
         defer query.deinit();
 
         try query.appendSlice("CREATE TABLE IF NOT EXISTS \"");
@@ -149,12 +149,12 @@ pub const SQLITE = struct {
     }
 
     pub fn queryBuilder(self: *SQLITE, comptime model_meta: parser.ModelMeta) !QueryBuilder {
-        return QueryBuilder.initWithMeta(self.allocator, &model_meta);
+        return QueryBuilder.init(self.allocator, &model_meta);
     }
 
     pub fn select(self: *SQLITE, comptime T: type, builder: *QueryBuilder) ![]T {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
-        var query_text = std.ArrayList(u8).init(self.allocator);
+        var query_text = std.array_list.Managed(u8).init(self.allocator);
         defer query_text.deinit();
         try builder.buildSelectQuery(&query_text);
         const c_query = try self.allocator.dupeZ(u8, query_text.items);
@@ -210,7 +210,7 @@ pub const SQLITE = struct {
 
     pub fn delete(self: *SQLITE, builder: *QueryBuilder) !void {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
-        var query_text = std.ArrayList(u8).init(self.allocator);
+        var query_text = std.array_list.Managed(u8).init(self.allocator);
         defer query_text.deinit();
         try builder.buildDeleteQuery(&query_text);
         const c_query = try self.allocator.dupeZ(u8, query_text.items);
@@ -226,7 +226,7 @@ pub const SQLITE = struct {
 
     pub fn update(self: *SQLITE, builder: *QueryBuilder) !void {
         if (self.conn == null) return SQLiteError.ConnectionFailed;
-        var query_text = std.ArrayList(u8).init(self.allocator);
+        var query_text = std.array_list.Managed(u8).init(self.allocator);
         defer query_text.deinit();
         try builder.buildUpdateQuery(&query_text);
         const c_query = try self.allocator.dupeZ(u8, query_text.items);

@@ -81,8 +81,9 @@ fn generateMetaFile(allocator: std.mem.Allocator, schema: Parser.Schema, output_
     const file = try std.fs.cwd().createFile(output_path, .{});
     defer file.close();
 
-    var buffered_writer = std.io.bufferedWriter(file.writer());
-    const writer = buffered_writer.writer();
+    var output = std.array_list.Managed(u8).init(allocator);
+    defer output.deinit();
+    const writer = output.writer();
 
     // Generate header with import path that works from user's project
     try writer.print("// Generated file - Do not edit manually\n", .{});
@@ -128,7 +129,7 @@ fn generateMetaFile(allocator: std.mem.Allocator, schema: Parser.Schema, output_
     }
     try writer.print("}};\n", .{});
 
-    try buffered_writer.flush();
+    try file.writeAll(output.items);
 }
 
 pub fn main() !void {

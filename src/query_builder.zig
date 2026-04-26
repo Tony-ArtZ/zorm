@@ -44,10 +44,10 @@ pub const QueryBuilder = struct {
     model_meta: ?*const parser.ModelMeta = null,
 
     // Query components
-    select_fields: std.ArrayList([]const u8),
-    where_conditions: std.ArrayList(WhereCondition),
-    logical_operators: std.ArrayList(LogicalOperator),
-    order_by_clauses: std.ArrayList(OrderByClause),
+    select_fields: std.array_list.Managed([]const u8),
+    where_conditions: std.array_list.Managed(WhereCondition),
+    logical_operators: std.array_list.Managed(LogicalOperator),
+    order_by_clauses: std.array_list.Managed(OrderByClause),
     limit_value: ?usize = null,
     offset_value: ?usize = null,
 
@@ -59,10 +59,10 @@ pub const QueryBuilder = struct {
             .allocator = allocator,
             .table_name = model_meta.name,
             .model_meta = model_meta,
-            .select_fields = std.ArrayList([]const u8).init(allocator),
-            .where_conditions = std.ArrayList(WhereCondition).init(allocator),
-            .logical_operators = std.ArrayList(LogicalOperator).init(allocator),
-            .order_by_clauses = std.ArrayList(OrderByClause).init(allocator),
+            .select_fields = std.array_list.Managed([]const u8).init(allocator),
+            .where_conditions = std.array_list.Managed(WhereCondition).init(allocator),
+            .logical_operators = std.array_list.Managed(LogicalOperator).init(allocator),
+            .order_by_clauses = std.array_list.Managed(OrderByClause).init(allocator),
             .insert_data = std.StringHashMap([]const u8).init(allocator),
             .update_data = std.StringHashMap([]const u8).init(allocator),
         };
@@ -270,7 +270,7 @@ pub const QueryBuilder = struct {
         return self;
     }
 
-    pub fn buildSelectQuery(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    pub fn buildSelectQuery(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         try buffer.appendSlice("SELECT ");
 
         if (self.select_fields.items.len == 0) {
@@ -304,7 +304,7 @@ pub const QueryBuilder = struct {
         try buffer.append(';');
     }
 
-    pub fn buildInsertQuery(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    pub fn buildInsertQuery(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         if (self.insert_data.count() == 0) {
             return;
         }
@@ -338,7 +338,7 @@ pub const QueryBuilder = struct {
         try buffer.appendSlice(");");
     }
 
-    pub fn buildUpdateQuery(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    pub fn buildUpdateQuery(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         if (self.update_data.count() == 0) {
             return;
         }
@@ -363,7 +363,7 @@ pub const QueryBuilder = struct {
         try buffer.append(';');
     }
 
-    pub fn buildDeleteQuery(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    pub fn buildDeleteQuery(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         try buffer.appendSlice("DELETE FROM \"");
         try buffer.appendSlice(self.table_name);
         try buffer.append('"');
@@ -372,7 +372,7 @@ pub const QueryBuilder = struct {
         try buffer.append(';');
     }
 
-    fn appendWhereClause(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    fn appendWhereClause(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         if (self.where_conditions.items.len == 0) {
             return;
         }
@@ -440,7 +440,7 @@ pub const QueryBuilder = struct {
         }
     }
 
-    fn appendOrderByClause(self: *QueryBuilder, buffer: *std.ArrayList(u8)) !void {
+    fn appendOrderByClause(self: *QueryBuilder, buffer: *std.array_list.Managed(u8)) !void {
         if (self.order_by_clauses.items.len == 0) {
             return;
         }
