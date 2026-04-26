@@ -59,7 +59,7 @@ pub const PG = struct {
     pub fn createTable(self: *PG, comptime model_meta: parser.ModelMeta) !void {
         if (self.conn == null) return PGError.ConnectionFailed;
 
-        var query = std.array_list.Managed(u8).init(self.allocator);
+        var query = std.ArrayList(u8).init(self.allocator);
         defer query.deinit();
 
         try query.appendSlice("CREATE TABLE IF NOT EXISTS \"");
@@ -117,7 +117,7 @@ pub const PG = struct {
         const type_name = @typeName(T);
         const model_name = if (std.mem.endsWith(u8, type_name, ".User")) "User" else type_name;
 
-        var query = std.array_list.Managed(u8).init(self.allocator);
+        var query = std.ArrayList(u8).init(self.allocator);
         defer query.deinit();
 
         try query.appendSlice("INSERT INTO \"");
@@ -169,7 +169,7 @@ pub const PG = struct {
     pub fn update(self: *PG, builder: *QueryBuilder) !void {
         if (self.conn == null) return PGError.ConnectionFailed;
 
-        var query_text = std.array_list.Managed(u8).init(self.allocator);
+        var query_text = std.ArrayList(u8).init(self.allocator);
         defer query_text.deinit();
 
         try builder.buildUpdateQuery(&query_text);
@@ -191,7 +191,7 @@ pub const PG = struct {
     pub fn delete(self: *PG, builder: *QueryBuilder) !void {
         if (self.conn == null) return PGError.ConnectionFailed;
 
-        var query_text = std.array_list.Managed(u8).init(self.allocator);
+        var query_text = std.ArrayList(u8).init(self.allocator);
         defer query_text.deinit();
 
         try builder.buildDeleteQuery(&query_text);
@@ -213,7 +213,7 @@ pub const PG = struct {
     pub fn select(self: *PG, comptime T: type, builder: *QueryBuilder) ![]T {
         if (self.conn == null) return PGError.ConnectionFailed;
 
-        var query_text = std.array_list.Managed(u8).init(self.allocator);
+        var query_text = std.ArrayList(u8).init(self.allocator);
         defer query_text.deinit();
 
         try builder.buildSelectQuery(&query_text);

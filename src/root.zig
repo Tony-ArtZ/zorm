@@ -7,6 +7,7 @@ pub const generator = @import("generator.zig");
 // Backend modules
 pub const pg = @import("backends/pg.zig");
 pub const sqlite = @import("backends/sqlite.zig");
+pub const mysql = @import("backends/mysql.zig");
 pub const queryBuilder = @import("query_builder.zig");
 
 // Re-export commonly used types for generated schemas
@@ -17,6 +18,7 @@ pub const DatabaseType = parser.DatabaseType;
 // Re-export commonly used types for library users
 pub const PG = pg.PG;
 pub const SQLITE = sqlite.SQLITE;
+pub const MYSQL = mysql.MYSQL;
 pub const QueryBuilder = queryBuilder.QueryBuilder;
 
 // Re-export QueryBuilder enums

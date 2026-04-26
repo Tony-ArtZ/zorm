@@ -81,7 +81,7 @@ fn generateMetaFile(allocator: std.mem.Allocator, schema: Parser.Schema, output_
     const file = try std.fs.cwd().createFile(output_path, .{});
     defer file.close();
 
-    var output = std.array_list.Managed(u8).init(allocator);
+    var output = std.ArrayList(u8).init(allocator);
     defer output.deinit();
     const writer = output.writer();
 
